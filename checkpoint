@@ -1,0 +1,4 @@
+model_checkpoint_path: "/tmp/agent/model.ckpt-09012640"
+all_model_checkpoint_paths: "/tmp/agent/model.ckpt-89639040"
+all_model_checkpoint_paths: "/tmp/agent/model.ckpt-90272000"
+all_model_checkpoint_paths: "/tmp/agent/model.ckpt-90912640"
