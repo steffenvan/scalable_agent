@@ -692,6 +692,35 @@ def train(action_set, level_names):
 
           session.run(enqueue_ops)
 
+def test(action_set, level_names):
+  """Test."""
+
+  level_returns = {level_name: [] for level_name in level_names}
+  with tf.Graph().as_default():
+    agent = Agent(len(action_set))
+    outputs = {}
+    for level_name in level_names:
+      env = create_atari_environment(level_name, seed=1, is_test=True)
+      outputs[level_name] = build_actor(agent, env, level_name, action_set)
+
+    with tf.train.SingularMonitoredSession(
+        checkpoint_dir=FLAGS.logdir,
+        hooks=[py_process.PyProcessHook()]) as session:
+      for level_name in level_names:
+        tf.logging.info('Testing level: %s', level_name)
+        while True:
+          done_v, infos_v = session.run((
+              outputs[level_name].env_outputs.done,
+              outputs[level_name].env_outputs.info
+          ))
+          returns = level_returns[level_name]
+          print("returns: ", returns)
+          returns.extend(infos_v.episode_return[1:][done_v[1:]])
+
+          if len(returns) >= FLAGS.test_num_episodes:
+            tf.logging.info('Mean episode return: %f', np.mean(returns))
+            break
+
 
 
 ATARI_MAPPING = collections.OrderedDict([
@@ -729,7 +758,8 @@ def main(_):
 #   else:
 #     level_names = [FLAGS.level_name]
 
-    train(boxing_action_values, ATARI_MAPPING.keys()) 
+#    train(boxing_action_values, ATARI_MAPPING.keys()) 
+    test(boxing_action_values, ATARI_MAPPING.keys())
 
 def get_seed():
   global seed 
