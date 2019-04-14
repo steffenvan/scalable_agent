@@ -80,14 +80,6 @@ AgentOutput = collections.namedtuple('AgentOutput',
 def is_single_machine():
     return FLAGS.task == -1
 
-# class NormalAgent(snt.Conv2D):
-#     def __init__(self, num_actions):
-#         super(NormalAgent, self)__init__(name="agent")
-
-#         self.num_actions = num_actions
-#         with self._enter_variable_scope():
-#             self._conv_mod = 
-
 class Agent(snt.RNNCore):
 
     def __init__(self, num_actions):
@@ -126,7 +118,7 @@ class Agent(snt.RNNCore):
             
     def _torso(self, input_):
         last_action, env_output = input_
-        reward, _, _, frame = env_output
+        reward, _, _, (frame, instruction) = env_output
         # print("Instruction is: ", instruction)
 
         # Convert to floats.
@@ -424,8 +416,8 @@ def build_learner(agent, agent_state, env_outputs, agent_outputs):
   tf.summary.scalar('learning_rate', learning_rate)
   tf.summary.scalar('total_loss', total_loss)
   tf.summary.histogram('action', agent_outputs.action)
-  print("(atari_experiment.py) done: ", done)
-  print("(atari_experiment.py) infos: ", done)
+  # print("(atari_experiment.py) done: ", done)
+  # print("(atari_experiment.py) infos: ", done)
   return done, infos, num_env_frames_and_train
 
 
@@ -461,7 +453,6 @@ def pin_global_variables(device):
   with tf.variable_scope('', custom_getter=getter) as vs:
     yield vs
 
-num_actions_step = 16
 # TODO: change 
 def train(action_set, level_names):
   """Train."""
@@ -536,10 +527,8 @@ def train(action_set, level_names):
         level_name = level_names[i % len(level_names)]
         tf.logging.info('Creating actor %d with level %s', i, level_name)
         env = create_atari_environment(level_name, seed=i + 1)
-        # TODO: Modify to atari environment
         actor_output = build_actor(agent, env, level_name, action_set)
         
-        # print("Actor output is: ", actor_output)
         with tf.device(shared_job_device):
           enqueue_ops.append(queue.enqueue(nest.flatten(actor_output)))
 
@@ -590,10 +579,11 @@ def train(action_set, level_names):
     # Create MonitoredSession (to run the graph, checkpoint and log).
     tf.logging.info('Creating MonitoredSession, is_chief %s', is_learner)
     config = tf.ConfigProto(allow_soft_placement=True, device_filters=filters)
+    logdir = os.path.join(FLAGS.logdir, level_name)
     with tf.train.MonitoredTrainingSession(
         server.target,
         is_chief=is_learner,
-        checkpoint_dir=FLAGS.logdir,
+        checkpoint_dir= logdir,
         save_checkpoint_secs=600,
         save_summaries_secs=30,
         log_step_count_steps=50000,
@@ -622,6 +612,7 @@ def train(action_set, level_names):
         #  print("(atari_experiment.py) num_env_frames: ", num_env_frames_v)
           level_names_v, done_v, infos_v, num_env_frames_v, _ = session.run(
               (data_from_actors.level_name,) + output + (stage_op,))
+
           level_names_v = np.repeat([level_names_v], done_v.shape[0], 0)
           total_episode_frames = num_env_frames_v
           for level_name, episode_return, episode_step in zip(
@@ -692,6 +683,41 @@ def train(action_set, level_names):
 
           session.run(enqueue_ops)
 
+def test(action_set, level_names):
+  """Test."""
+
+  level_returns = {level_name: [] for level_name in level_names}
+  with tf.Graph().as_default():
+    agent = Agent(len(action_set))
+    outputs = {}
+    for level_name in level_names:
+      env = create_atari_environment(level_name, seed=1, is_test=True)
+      outputs[level_name] = build_actor(agent, env, level_name, action_set)
+
+    with tf.train.SingularMonitoredSession(
+        checkpoint_dir=FLAGS.logdir,
+        hooks=[py_process.PyProcessHook()]) as session:
+      for level_name in level_names:
+        tf.logging.info('Testing level: %s', level_name)
+        while True:
+          done_v, infos_v = session.run((
+              outputs[level_name].env_outputs.done,
+              outputs[level_name].env_outputs.info
+          ))
+          returns = level_returns[level_name]
+          print("returns: ", returns)
+          returns.extend(infos_v.episode_return[1:][done_v[1:]])
+
+          if len(returns) >= FLAGS.test_num_episodes:
+            tf.logging.info('Mean episode return: %f', np.mean(returns))
+            break
+
+
+  no_cap = dmlab30.compute_human_normalized_score(level_returns,
+                                                  per_level_cap=None)
+  cap_100 = dmlab30.compute_human_normalized_score(level_returns,
+                                                    per_level_cap=100)
+  tf.logging.info('No cap.: %f Cap 100: %f', no_cap, cap_100)
 
 
 ATARI_MAPPING = collections.OrderedDict([
@@ -729,7 +755,8 @@ def main(_):
 #   else:
 #     level_names = [FLAGS.level_name]
 
-    train(boxing_action_values, ATARI_MAPPING.keys()) 
+    # train(boxing_action_values, ATARI_MAPPING.keys()) 
+    test(boxing_action_values, ATARI_MAPPING.keys()) 
 
 def get_seed():
   global seed 

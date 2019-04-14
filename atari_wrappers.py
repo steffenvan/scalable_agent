@@ -199,6 +199,7 @@ class LazyFrames(object):
         This object should only be converted to numpy array before being passed to the model.
         You'd not believe how complex the previous solution was."""
         self._frames = frames
+        # print(self._frames)
         self._out = None
 
     def _force(self):
@@ -236,6 +237,7 @@ def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=False, 
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetEnv(env)
     env = WarpFrame(env)
+
     if scale:
         env = ScaledFloatFrame(env)
     if clip_rewards:
