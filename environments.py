@@ -183,7 +183,7 @@ class PyProcessAtari(object):
       # reward = reward.astype(float)
       # print ("(environments.py) Info is: ", info)
       self.counter += 1
-      self._env.render()
+      #self._env.render()
       done = np.array(is_done)
       reward = np.float32(reward)
       # print("is done info: ", done)
