@@ -328,6 +328,7 @@ def build_learner(agent, agent_state, env_outputs, agent_outputs):
                                             FLAGS.total_environment_frames, 0)
   optimizer = tf.train.RMSPropOptimizer(learning_rate, FLAGS.decay,
                                         FLAGS.momentum, FLAGS.epsilon)
+  print(total_loss)
   train_op = optimizer.minimize(total_loss)
 
   # Merge updating the network and environment frames into a single tensor.
